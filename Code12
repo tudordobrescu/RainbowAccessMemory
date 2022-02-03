@@ -1,0 +1,314 @@
+#include <Wire.h>
+
+///////////////////////////////////////////////////////////////////////////////////////////////// MPR DECLARATION
+#include "Adafruit_MPR121.h"
+#include "DaisyDuino.h"
+#include "Adafruit_NeoTrellis.h"
+
+#ifndef _BV
+#define _BV(bit) (1 << (bit)) 
+#endif
+
+// You can have up to 4 on one i2c bus but one is enough for testing!
+Adafruit_MPR121 cap = Adafruit_MPR121();
+
+Adafruit_NeoTrellis trellis;
+
+// Keeps track of the last pins touched
+// so we know when buttons are 'released'
+uint16_t lasttouched = 0;
+uint16_t currtouched = 0;
+
+int m; // - Random First Sound
+
+int stopped = 0;
+
+int buttonspressed = 4;
+
+///////////////////////////////////////////////////////////////////////////////////////////////// ARCADE BUTTON DECLARATION
+
+/*
+  DigitalReadSerial
+
+  Reads a digital input on pin 2, prints the result to the Serial Monitor
+
+  This example code is in the public domain.
+
+  https://www.arduino.cc/en/Tutorial/BuiltInExamples/DigitalReadSerial
+*/
+
+// digital pin 2 has a pushbutton attached to it. Give it a name:
+int pushButton = D2;
+int pushLed = D3;
+
+///////////////////////////////////////////////////////////////////////////////////////////////// OSCILLATOR DECLARATION
+
+DaisyHardware hw;
+
+size_t num_channels;
+
+static Oscillator osc;
+static Chorus chor; //-------------------------------------------------------------------------- Chorus effect declaration
+
+float pitchknob;
+
+  uint32_t coloron[12] = {trellis.pixels.Color(0, 138, 0), trellis.pixels.Color(0, 171, 169), trellis.pixels.Color(0, 80, 239), trellis.pixels.Color(0, 0, 255),trellis.pixels.Color(50, 0, 255), trellis.pixels.Color(170, 50, 255), trellis.pixels.Color(244, 114, 208), trellis.pixels.Color(216, 0, 115), trellis.pixels.Color(229, 20, 0), trellis.pixels.Color(250, 104, 0), trellis.pixels.Color(240, 163, 10), trellis.pixels.Color(227, 200, 0)}; 
+  int buttonstolights[12] = {1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
+  int task[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int check[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  
+  
+  uint32_t color1 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color2 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color3 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color4 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color5 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color6 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color7 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color8 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color9 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color10 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color11 = trellis.pixels.Color(0, 0, 0);
+  uint32_t color12 = trellis.pixels.Color(0, 0, 0);
+
+  uint32_t colorright = trellis.pixels.Color(0, 255, 0);
+
+  uint32_t colorwrong = trellis.pixels.Color(255, 0, 0);
+
+void MyCallback(float **in, float **out, size_t size) {
+  // Convert Pitchknob MIDI Note Number to frequency
+  osc.SetFreq(mtof(pitchknob));
+  //Serial.println(pitchknob);
+  for (size_t i = 0; i < size; i++) {
+    float sig = osc.Process();
+    float sig2 = chor.Process(sig); //---------------------------------------------------------- Processes sig
+
+    for (size_t chn = 0; chn < num_channels; chn++) {
+      out[chn][i] = sig2; //-------------------------------------------------------------- Outs processed sig2
+    }
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////// SETUP
+
+///////////////////////////////////////////////////////////////////////////////////////////////// ARCADE BUTTON
+
+// the setup routine runs once when you press reset:
+void setup() {
+  
+  // initialize serial communication at 9600 bits per second:
+  Serial.begin(9600);
+  // make the pushbutton's pin an input:
+  pinMode(pushButton, INPUT);
+  pinMode(pushLed, OUTPUT);
+
+  // /////////////////////////////////////////////////////////////////////////////////////////// MPR TOUCH SENSOR
+
+  while (!Serial) { // needed to keep leonardo/micro from starting too fast!
+    delay(10);
+  }
+  
+  Serial.println("Adafruit MPR121 Capacitive Touch sensor test"); 
+  
+  // Default address is 0x5A, if tied to 3.3V its 0x5B
+  // If tied to SDA its 0x5C and if SCL then 0x5D
+  if (!cap.begin(0x5A)) {
+    Serial.println("MPR121 not found, check wiring?");
+    while (1);
+  }
+  Serial.println("MPR121 found!");
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////// OSCILLATOR
+
+  float sample_rate;
+  // Initialize for Daisy pod at 48kHz
+  hw = DAISY.init(DAISY_SEED, AUDIO_SR_48K);
+  num_channels = hw.num_channels;
+  sample_rate = DAISY.get_samplerate();
+
+  chor.Init(sample_rate);
+  osc.Init(sample_rate);
+  osc.SetFreq(5000);
+  osc.SetAmp(0.5);
+  osc.SetWaveform(osc.WAVE_TRI);
+
+  DAISY.begin(MyCallback);
+
+  //int m;
+  //pitchknob = 24.0 + m * 7;
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////// NEOTRELLIS
+
+  if (!trellis.begin()) {
+    Serial.println("Could not start trellis, check wiring?");
+    while(1) delay(1);
+  } else {
+    Serial.println("NeoPixel Trellis started");
+  }
+
+//  uint32_t colorRed = trellis.pixels.Color(255, 100, 100);
+//  uint32_t colorGreen = trellis.pixels.Color(255, 255, 255);
+//  uint32_t colorBlue = trellis.pixels.Color(50, 50, 255);
+//
+//  trellis.pixels.setPixelColor(2, colorRed);
+//  trellis.pixels.setPixelColor(3, colorGreen);
+//  trellis.pixels.setPixelColor(4, colorBlue);
+//  trellis.pixels.show();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////// LOOP
+
+///////////////////////////////////////////////////////////////////////////////////////////////// ARCADE BUTTON
+
+// the loop routine runs over and over again forever:
+void loop() {
+
+
+  trellis.pixels.setPixelColor(1, color1);
+  trellis.pixels.setPixelColor(2, color2);
+  trellis.pixels.setPixelColor(3, color3);
+  trellis.pixels.setPixelColor(5, color4);
+  trellis.pixels.setPixelColor(6, color5);
+  trellis.pixels.setPixelColor(7, color6);
+  trellis.pixels.setPixelColor(9, color7);
+  trellis.pixels.setPixelColor(10, color8);
+  trellis.pixels.setPixelColor(11, color9);
+  trellis.pixels.setPixelColor(13, color10);
+  trellis.pixels.setPixelColor(14, color11);
+  trellis.pixels.setPixelColor(15, color12);
+  trellis.pixels.show();
+
+  
+  
+  // read the input pin:
+  int buttonState = digitalRead(pushButton);
+  // print out the state of the button:
+  //Serial.println(buttonState);
+  delay(1);        // delay in between reads for stability
+  if(!buttonState) {
+    digitalWrite(pushLed, HIGH);
+    delay(700);
+    buttonspressed = 0;
+    int n = random (1, 12);
+    int p = 0;
+    for(int h=0; h<=11; h++)
+     {
+      task[h] = 0;
+      check[h] = 0;
+     }
+      
+    for(int j=1; j<=4; j++)
+    {
+      int L;
+      L = random(1, 12);
+      pitchknob = 24.0 + L * 7;
+      trellis.pixels.setPixelColor(buttonstolights[L], coloron[L]);
+      trellis.pixels.show();
+      task[L] = L;
+      Serial.println();
+      Serial.print("task-");
+      Serial.print(task[L]);
+      Serial.println();
+      delay(500); //----------------------------------------- otherwise it plays the random sounds simultaneously.
+      stopped = 0;
+    }
+  }
+    else {
+      digitalWrite(pushLed, LOW);
+      if (!stopped)
+      {
+        pitchknob = 0.1;
+        stopped = 1;
+      }
+    }
+
+  // /////////////////////////////////////////////////////////////////////////////////////////// MPR TOUCH SENSOR
+
+  // Get the currently touched pads
+  currtouched = cap.touched();
+  
+  delay(100);
+  
+  for (uint8_t i=0; i<12; i++) {
+    // it if *is* touched and *wasnt* touched before, alert!
+    if ((currtouched & _BV(i)) && !(lasttouched & _BV(i)) ) {
+      //Serial.print(i); Serial.println(" touched");
+      pitchknob = 24.0 + (i) * 7; //----------------------------------------------------------- OSCILLATOR PITCHKNOB
+      trellis.pixels.setPixelColor(buttonstolights[i], coloron[i]);
+      trellis.pixels.show();
+      check[i] = i;
+      buttonspressed++;
+      Serial.println();
+      Serial.print("pressed-");
+      Serial.print(check[i]);
+      Serial.println();
+    }
+    // if it *was* touched and now *isnt*, alert!
+    if (!(currtouched & _BV(i)) && (lasttouched & _BV(i)) ) {
+      //Serial.print(i); Serial.println(" released");
+        for(int g=0; g<=11; g++)
+    {
+      Serial.print(task[g]);
+    }
+    Serial.println();
+      for (int g=0; g<=11; g++)
+      {
+        Serial.print(check[g]);
+      }
+    }
+  }
+  if(buttonspressed==4)
+    {
+    bool right = true;
+  
+    for (int k=0; k<=11; k++)
+      {
+        if (task[k] != check[k])
+          right = false;
+      }
+  
+     if(right)
+     {
+        Serial.println("right");
+        for(int c=0; c<=15; c++)
+        trellis.pixels.setPixelColor(c, colorright);
+        trellis.pixels.show();
+     } else{
+            for(int c = 0; c<=15; c++)
+            trellis.pixels.setPixelColor(c, colorwrong);
+            trellis.pixels.show();
+           }
+  
+    }
+
+
+  // reset our state
+  lasttouched = currtouched;
+
+  // comment out this line for detailed data from the sensor!
+  return;
+  
+  // debugging info, what
+  Serial.print("\t\t\t\t\t\t\t\t\t\t\t\t\t 0x"); Serial.println(cap.touched(), HEX);
+  Serial.print("Filt: ");
+  for (uint8_t i=0; i<12; i++) {
+    Serial.print(cap.filteredData(i)); Serial.print("\t");
+  }
+  Serial.println();
+  Serial.print("Base: ");
+  for (uint8_t i=0; i<12; i++) {
+    Serial.print(cap.baselineData(i)); Serial.print("\t");
+  }
+  Serial.println();
+  
+  // put a delay so it isn't overwhelming
+  delay(100);
+
+  // /////////////////////////////////////////////////////////////////////////////////////////// NEOTRELLIS
+
+  trellis.read();  // interrupt management does all the work! :)
+  
+  delay(20); //the trellis has a resolution of around 60hz
+
+    
+}
