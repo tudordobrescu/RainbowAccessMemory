@@ -14,3 +14,31 @@ The code then connects each touch pad to a certain sound and a certain NeoTrelli
 of four audio-visual outputs that are remembered in an array. The array is then compared to another array that keeps the 
 information typed in by the player. Finally, it compares the two and flashes all the green leds if they match and all the red
 ones if the player typed in incorrectly.
+
+https://github.com/electro-smith/DaisyWiki/wiki/1a.-Getting-Started-(Arduino-Edition)
+
+Install Arduino software
+Install STM32CubeProg
+Install STM32 MCU based boards (from Manage Libraries)
+Install DaisyDuino Library (from Manage Libraries)
+Select Tools — Board — Generic STM32H7 Series, then switch each tool to match the settings saved in Screenshots (Important: Port. If it doesn’t work, try after 10 or 11).
+
+Connect the DaisySeed
+
+Install Adafruit MPR (from Manage Libraries)
+File — Exampels — AdafruitMPR121 — MPR121Test
+
+Hold BOOT + Press RESET + Release BOOT
+Upload
+Press Reset
+
+Tools — Serial Monitor
+Touch
+
+File — Examples — Basics — DigitalReadSerial (Test Button)
+File — Examples — DaisyDuino — Seed — oscillator
+
+https://learn.adafruit.com/adafruit-neotrellis/arduino-code
+Install Adafruit Seesaw
+
+https://electro-smith.github.io/DaisySP/classdaisysp_1_1_bitcrush.html — Sound effects
